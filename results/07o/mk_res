@@ -1,0 +1,349 @@
+#!/usr/bin/perl -w -I ../perl
+
+use strict;
+use res;
+use reg;
+
+# Чтение данных
+my @data;
+res::read_tbl("data_in/e_0.dat",   \@data, 2);
+res::read_tbl("data_in/e_sm1.dat", \@data, 3);
+res::read_tbl("data_in/e_pf.dat",  \@data, 3);
+res::read_tbl("data_in/e_sm2.dat", \@data, 3);
+res::read_tbl("data_in/e_f.dat",   \@data, 3);
+my @cdata;
+reg::data_read("data_in/reg.dat", \@cdata);
+reg::modif_names(\@cdata);
+
+my %comm;
+open C, "data_in/e_comm.dat" or die "can't open e_comm";
+foreach (<C>){
+  if (/^([\d\-]+)\s+(.+)$/){
+    $comm{$1}=$2;
+  }
+}
+
+
+my @ddd;
+
+# Подсчет результатов
+for (my $n=0; $n<=$#data; $n++){
+
+  $ddd[$n]->{n}   = $n;
+
+  $ddd[$n]->{u}  = ${$data[$n]}[0];
+  $ddd[$n]->{name}  = ${$data[$n]}[1];
+
+  $ddd[$n]->{t1} = ${$data[$n]}[2];
+  $ddd[$n]->{u1} = ${$data[$n]}[3];
+  $ddd[$n]->{kp1} = ${$data[$n]}[4];
+
+  $ddd[$n]->{t2} = ${$data[$n]}[5];
+  $ddd[$n]->{u2} = ${$data[$n]}[6];
+  $ddd[$n]->{kp2} = ${$data[$n]}[7];
+
+  $ddd[$n]->{t3} = ${$data[$n]}[8];
+  $ddd[$n]->{u3} = ${$data[$n]}[9];
+  $ddd[$n]->{kp3} = ${$data[$n]}[10];
+
+  $ddd[$n]->{t4} = ${$data[$n]}[11];
+  $ddd[$n]->{u4} = ${$data[$n]}[12];
+  $ddd[$n]->{kp4} = ${$data[$n]}[13];
+
+  my $p=0;
+  foreach (0..13){
+    $p++ if ${$data[$n]}[$_] ne '';
+  }
+  if ($p==0) {$ddd[$n]->{empty}=1;next;}
+  else {$ddd[$n]->{empty}=0;}
+    # нет заполненых полей вообще
+
+  warn "не совпадает число участников в команде $n: ".
+       "$ddd[$n]->{u} - $ddd[$n]->{u1} - $ddd[$n]->{u2} - $ddd[$n]->{u3} - $ddd[$n]->{u4}\n"
+    if ((($ddd[$n]->{t1} ne '')&&($ddd[$n]->{u} ne $ddd[$n]->{u1}))||
+        (($ddd[$n]->{t2} ne '')&&($ddd[$n]->{u} ne $ddd[$n]->{u2}))||
+        (($ddd[$n]->{t3} ne '')&&($ddd[$n]->{u} ne $ddd[$n]->{u3}))||
+        (($ddd[$n]->{t4} ne '')&&($ddd[$n]->{u} ne $ddd[$n]->{u4})));
+
+  my $shtr1 = res::kp_conv($ddd[$n]->{kp1}, {1=>60, 2=>60, 3=>60, 4=>60, 5=>60, 6=>60, 7=>60, 8=>60, 9=>60, 10=>60, 11=>60, 12=>60, 13=>60, 14=>60, 15=>60, 16=>60, 17=>60});
+  my $shtr2 = res::kp_conv($ddd[$n]->{kp2}, {18=>60, 19=>60, 20=>60, 21=>60, 22=>60, 23=>60, 24=>60, 25=>60, 26=>60, 27=>60, 28=>120, 29=>120, 30=>120, 31=>120, 32=>120, 33=>120});
+  my $shtr3 = res::kp_conv($ddd[$n]->{kp3}, {34=>60, 35=>60, 36=>60, 37=>60, 38=>60, 39=>60, 40=>60, 41=>60, 42=>60});
+  my $shtr4 = res::kp_conv($ddd[$n]->{kp4}, {43=>60, 44=>60, 45=>60, 46=>60, 47=>60, 48=>60, 49=>60, 50=>60, 51=>60, 52=>60, 53=>60, 54=>60, 55=>60, 56=>60, 57=>60, 58=>60, 59=>60, 60=>60});
+  $ddd[$n]->{ts1} = "0:00";
+  $ddd[$n]->{ts2} = "7:00";
+  $ddd[$n]->{ts2} = $ddd[$n]->{t2} 
+    if ($ddd[$n]->{t2} ne '') && 
+       (res::time_conv($ddd[$n]->{t2}, "13:10") > res::time_conv("7:00","13:10"));
+
+  $ddd[$n]->{r1}='';
+  if ($ddd[$n]->{t1} ne ''){
+    $ddd[$n]->{r1}= res::time_conv($ddd[$n]->{t1}, "4:00") - res::time_conv($ddd[$n]->{ts1}, "0:00") + $shtr1;
+  }
+  $ddd[$n]->{r2}='';
+  if ($ddd[$n]->{t2} ne ''){
+    $ddd[$n]->{r2} = res::time_conv($ddd[$n]->{t2}, "13:10") - res::time_conv($ddd[$n]->{ts1}, "0:00") + $shtr1 + $shtr2;
+  }
+
+  $ddd[$n]->{r3}='';
+  if (($ddd[$n]->{t3} ne '')&&($ddd[$n]->{t2} ne '')){
+    $ddd[$n]->{r3}= res::time_conv($ddd[$n]->{t3}, "9:00") - res::time_conv($ddd[$n]->{ts2}, "7:00") + $shtr3;
+  }
+  $ddd[$n]->{r4}='';
+  if (($ddd[$n]->{t4} ne '')&&($ddd[$n]->{t2} ne '')){
+    $ddd[$n]->{r4} = res::time_conv($ddd[$n]->{t4}, "14:00") - res::time_conv($ddd[$n]->{ts2}, "7:00") + $shtr3 + $shtr4;
+  }
+
+
+  $ddd[$n]->{r} ='';
+  $ddd[$n]->{r} = $ddd[$n]->{r2}+$ddd[$n]->{r4}
+    if (($ddd[$n]->{r2} ne '')&&($ddd[$n]->{r4} ne ''));
+
+  $ddd[$n]->{r} = res::time_conv($ddd[$n]->{t4}, "14:00") + 24*60 + $shtr1 + $shtr2 + $shtr3 + $shtr4
+    if (($ddd[$n]->{r2} eq '')&&($ddd[$n]->{t4} ne ''));
+
+  if ($n==624) {$ddd[$n]->{r1}=''; $ddd[$n]->{r2}='';$ddd[$n]->{r3}='';}
+
+}
+
+# определение мест
+my (%r1c, %r2c, %r3c, %r4c, %rc);
+my (%r1m, %r2m, %r3m, %r4m, %rm);
+
+for (my $n=0; $n<=$#ddd; $n++){ # сколько мест с одинаковым временем
+#print "AAA $n $ddd[$n]->{empty} $cdata[$n]->{name}\n";
+  next if ($ddd[$n]->{empty} == 1);
+  $r1c{$ddd[$n]->{r1}}++ if $ddd[$n]->{r1} ne '';
+  $r2c{$ddd[$n]->{r2}}++ if $ddd[$n]->{r2} ne '';
+  $r3c{$ddd[$n]->{r3}}++ if $ddd[$n]->{r3} ne '';
+  $r4c{$ddd[$n]->{r4}}++ if $ddd[$n]->{r4} ne '';
+#  next if $ddd[$n]->{pr0} eq 'su';
+#  next if $ddd[$n]->{pr1} eq 'su';
+#  next if $ddd[$n]->{pr2} eq 'su';
+#  next if $ddd[$n]->{pr0} eq 'tr';
+#  next if $ddd[$n]->{pr1} eq 'tr';
+#  next if $ddd[$n]->{pr2} eq 'tr';
+#  next if $ddd[$n]->{pr1} eq 'kv';
+#  next if $ddd[$n]->{pr2} eq 'kv';
+#  next if $ddd[$n]->{pr3} eq 'kv';
+  $rc{$ddd[$n]->{r}}++ if $ddd[$n]->{r} ne '';
+}
+
+my $m;
+
+
+$m=1;
+foreach (sort {$a<=>$b} keys %r1c){
+  $m += $r1c{$_};
+  if ($r1c{$_}==1) {$r1m{$_} = $m-1;}
+  else {$r1m{$_} = ($m-$r1c{$_})."-".($m-1);}
+}
+$m=1;
+foreach (sort {$a<=>$b} keys %r2c){
+  $m += $r2c{$_};
+  if ($r2c{$_}==1) {$r2m{$_} = $m-1;}
+  else {$r2m{$_} = ($m-$r2c{$_})."-".($m-1);}
+}
+$m=1;
+foreach (sort {$a<=>$b} keys %r3c){
+  $m += $r3c{$_};
+  if ($r3c{$_}==1) {$r3m{$_} = $m-1;}
+  else {$r3m{$_} = ($m-$r3c{$_})."-".($m-1);}
+}
+$m=1;
+foreach (sort {$a<=>$b} keys %r4c){
+  $m += $r4c{$_};
+  if ($r4c{$_}==1) {$r4m{$_} = $m-1;}
+  else {$r4m{$_} = ($m-$r4c{$_})."-".($m-1);}
+}
+$m=1;
+foreach (sort {$a<=>$b} keys %rc){
+  $m += $rc{$_};
+  if ($rc{$_}==1) {$rm{$_} = $m-1;}
+  else {$rm{$_} = ($m-$rc{$_})."-".($m-1);}
+}
+$r1m{''}='';
+$r2m{''}='';
+$r3m{''}='';
+$r4m{''}='';
+$rm{''}='';
+
+
+# глобальный порядок сортировки
+my $i=0;
+foreach (@ddd) {
+  $_->{srt} = 50000;
+  next if ($_->{empty} == 1);
+  $_->{m1} = $r1m{$_->{r1}};
+  $_->{m2} = $r2m{$_->{r2}};
+  $_->{m3} = $r3m{$_->{r3}};
+  $_->{m4} = $r4m{$_->{r4}};
+  $_->{m} = $rm{$_->{r}};
+
+#  $_->{m} = '' if ($_->{pr0} eq 'su');  ## вне зачета
+#  $_->{m} = '' if ($_->{pr1} eq 'su');  ## вне зачета
+#  $_->{m} = '' if ($_->{pr2} eq 'su');  ## вне зачета
+#  $_->{m} = '' if ($_->{pr0} eq 'tr');  ## вне зачета
+#  $_->{m} = '' if ($_->{pr1} eq 'tr');  ## вне зачета
+#  $_->{m} = '' if ($_->{pr2} eq 'tr');  ## вне зачета
+#  $_->{m} = '' if ($_->{pr1} eq 'kv');  ## вне зачета
+#  $_->{m} = '' if ($_->{pr2} eq 'kv');  ## вне зачета
+#  $_->{m} = '' if ($_->{pr3} eq 'kv');  ## вне зачета
+
+  if    ($_->{m}  =~ /^(\d+)/) {$_->{srt} = $1;}
+  elsif ($_->{m3} =~ /^(\d+)/) {$_->{srt} = $1+10000;} ### внезачетники
+  elsif ($_->{m2} =~ /^(\d+)/) {$_->{srt} = $1+20000;} ### внезачетники
+  elsif ($_->{m1} =~ /^(\d+)/) {$_->{srt} = $1+30000;} ### только первый этап
+  else  {$_->{srt} = $i+40000; $i++}
+}
+
+$ddd[714]->{srt}+=0.5;
+ # dist
+
+
+### вывод!
+
+open OUT, "> data_out/res07o.htm";
+my $fg_m = '#F00000';
+
+print OUT qq*
+<html><head>
+<style type="TEXT/CSS">
+TH {font-family: sans-serif; font-size:15px; background-color: \#A0A0A0;}
+TD {font-family: sans-serif; font-size:15px; background-color: \#C0C0C0;}
+</STYLE>
+</head>
+<body>
+*;
+
+print OUT qq*
+<p><table border=0 cellspacing=1 cellpadding=5>
+<tr><th colspan=10><font size="+2">Результаты ММБ2007-осень</font></th>
+<th colspan=2>$res::mmb_count
+</th>
+</tr>
+<tr>
+<td colspan=16>
+<p>Покровка - Яхрома, 27-28 октября
+
+<p>Первый этап: 33 КП. Старт в 0:00 субботы 27 октября,
+контрольное время до 9:00 воскресенья.
+
+<p>Второй этап: 27 КП. Старт в 7:00 воскресенья, 
+контрольное время -- до 21:00 воскресенья. 
+
+<p>Команды, опоздавшие к 7:00 на пром.финиш могли стартовать позже.
+При этом время старта второго этапа считается равным времени финиша
+первого этапа.
+
+<p>Штраф за невзятие КП 1-27 и 34-60 -- 1 час, КП 28-33 -- 2 часа.
+
+<p> Карты дистанции:
+<p>
+<a href="07o/m1.png">  <img src="07o/m1.jpg"  width=160 height=102 alt="1 (первый этап)"></a>
+<a href="07o/m2.png">  <img src="07o/m2.jpg"  width=92  height=160 alt="2 (первый этап)"></a>
+<a href="07o/m3.png">  <img src="07o/m3.jpg"  width=106 height=160 alt="3 (первый этап)"></a>
+<a href="07o/m4.png">  <img src="07o/m4.jpg"  width=160 height=102 alt="4 (второй этап)"></a>
+<a href="07o/m5.png">  <img src="07o/m5.jpg"  width=91  height=114 alt="5 (второй этап)"></a>
+<a href="07o/m6.png">  <img src="07o/m6.jpg"  width=160 height=109 alt="6 (второй этап)"></a>
+<a href="07o/m7.png">  <img src="07o/m7.jpg"  width=109 height=160 alt="7 (второй этап)"></a>
+</td>
+</tr>
+
+<tr>
+<th rowspan=2>N</th>
+<th rowspan=2>Команда</th>
+<th colspan=4>первый этап (1 строка - смена карт, 2-я - финиш)</th>
+<th colspan=4>второй этап (1 строка - смена карт, 2-я - финиш)</th>
+<th colspan=2>итог</th>
+</tr>
+<tr>
+<th>время</th>
+<th>невз.КП</th>
+<th>рез.</th>
+<th>место</th>
+<th>время</th>
+<th>невз.КП</th>
+<th>рез.</th>
+<th>место</th>
+<th>рез.</th>
+<th>место</th>
+</tr>
+*;
+
+foreach ( sort {$a->{srt} <=> $b->{srt}} @ddd) {
+  next if ($_->{empty} == 1);
+  $_->{r1} = res::m2t($_->{r1});
+  $_->{r2} = res::m2t($_->{r2});
+  $_->{r3} = res::m2t($_->{r3});
+  $_->{r4} = res::m2t($_->{r4});
+  $_->{r} = res::m2t($_->{r});
+
+# $_->{pr2} = 'вых. за к.в.' if $_->{pr2} eq 'kv';
+#  $_->{pr3} = '*' if $_->{pr3} eq 'kv';
+#  $_->{pr0} = 'сх.уч.' if $_->{pr0} eq 'su';
+#  $_->{pr1} = 'сх.уч.' if $_->{pr1} eq 'su';
+#  $_->{pr2} = 'сх.уч.' if $_->{pr2} eq 'su';
+#  $_->{pr0} = 'исп.транспорта' if $_->{pr0} eq 'tr';
+#  $_->{pr1} = 'исп.транспорта' if $_->{pr1} eq 'tr';
+#  $_->{pr2} = 'исп.транспорта' if $_->{pr2} eq 'tr';
+#  $_->{pr2} = 'время финиша приблизительно' if $_->{pr2} eq 'fa';
+
+#  foreach my $f ('kp1','m1','t2s','kp2','m2','m','r1','r2','r'){
+#    $_->{$f} = '&nbsp;' if $_->{$f} eq '';
+#  }
+
+#<td>$_->{n}</td>
+  print OUT "<tr>", reg::html_cell(\@cdata, $_->{n}, \%comm), "\n";
+  print OUT "<td>$_->{t1}<br>$_->{t2}</td>";
+  print OUT "<td align=center>$_->{kp1}<br>$_->{kp2}</td>\n";
+  print OUT "<td align=center>$_->{r1}<br>$_->{r2}</td>\n";
+  print OUT "<td align=center>$_->{m1}<br>$_->{m2}</td>\n";
+  print OUT "<td>$_->{t3}<br>$_->{t4}</td>";
+  print OUT "<td align=center>$_->{kp3}<br>$_->{kp4}</td>\n";
+  print OUT "<td align=center>$_->{r3}<br>$_->{r4}</td>\n";
+  print OUT "<td align=center>$_->{m3}<br>$_->{m4}</td>\n";
+
+  print OUT "<td align=center><font size=\"+1\">$_->{r}</font></td>\n";
+  print OUT "<td align=center><font color=\"$fg_m\" size=\"+1\">$_->{m}</font></td>\n";
+  print OUT "</tr>\n";
+}
+print OUT qq*
+<tr>
+<th colspan=15>
+
+<p>
+Подготовка дистанции: А.Тонис, А.Чупикин, В.Завьялов, Л.Фишкис, И.Лысов, В.Осетров.<br>
+Тестирование дистанции: А.Панкратов, Д.Любимова, И.Лысов, В.Львов.<br>
+Проведение марш-броска: А.Тонис, А.Чупикин, Д.Шварц, Л.Фишкис, А.Панкратов, А.Зотов, Д.Любимова, И.Лысов, В.Завьялов, О.Урюпина, А.Каменская, Д.Ильинский, М.Савченко, М.Агеев, В.Осетров, Маша, В.Золотухина, Е.Артамонова<br>
+Существенную помощь оказали участники (к сожалению, вспомнил не всех): А.Петров, В.Петроченко...
+
+</th>
+</tr>
+</table>
+</body>
+</html>
+*;
+
+
+open OUT, "> data_out/ludi07o.txt";
+foreach ( sort {$a->{srt} <=> $b->{srt}} @ddd ) {
+  my $nu=0;
+  foreach my $u (1..9){
+    $nu++ if defined($cdata[$_->{n}]->{"u$u"}) && ($cdata[$_->{n}]->{"u$u"} ne '');
+  }
+  foreach my $u (1..9){
+    next if !defined($cdata[$_->{n}]->{"u$u"}) || ($cdata[$_->{n}]->{"u$u"} eq '');
+    printf OUT "%-40s\tN%d", $cdata[$_->{n}]->{"u$u"}, $_->{n};
+    printf OUT " \"%s\"", $cdata[$_->{n}]->{"name"} if $cdata[$_->{n}]->{"name"} ne '';
+    printf OUT " ($nu чел.)\t";
+
+    if ($_->{m} ne '') {
+      print OUT "$_->{r} ($_->{m} место)";}
+    elsif ($_->{r} ne '') {
+      print OUT "$_->{r} (вне зачета)";}
+    else {print OUT "сход с дистанции";}
+    print OUT "\n";
+  }
+}
+
+

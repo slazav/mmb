@@ -1,0 +1,210 @@
+#!/usr/bin/perl -w -I../perl
+
+use strict;
+use res;
+use reg;
+
+
+# Чтение данных
+my @data;
+res::read_tbl("data_in/r.dat", \@data, 6);
+my @cdata;
+reg::data_read("data_in/reg.dat", \@cdata);
+reg::modif_names(\@cdata);
+
+my @ddd;
+
+# Подсчет результатов
+for (my $n=0; $n<=$#data; $n++){
+
+  $ddd[$n]->{n}   = $n;
+
+  $ddd[$n]->{t1s} = ${$data[$n]}[0];
+  $ddd[$n]->{tsk} = ${$data[$n]}[1];
+  $ddd[$n]->{kp1} = ${$data[$n]}[2];
+  $ddd[$n]->{t1f} = ${$data[$n]}[3];
+  $ddd[$n]->{kp2} = ${$data[$n]}[4];
+  $ddd[$n]->{pr1} = ${$data[$n]}[5];
+
+  my $shtr1;
+  my $shtr2;
+  $shtr1 = res::kp_conv($ddd[$n]->{kp1}, 
+  {1=>60, 2=>60, 3=>60, 4=>60}); 
+
+  $shtr2 = res::kp_conv($ddd[$n]->{kp2}, 
+  {6=>60, 7=>60, 8=>60, 9=>60, 10=>60});
+
+  $ddd[$n]->{r1}='';
+  if ($ddd[$n]->{tsk} ne ''){
+    $ddd[$n]->{r1}= res::time_conv($ddd[$n]->{tsk}, "10:00") - 
+    res::time_conv($ddd[$n]->{t1s}, "10:00") + $shtr1;
+  }
+  $ddd[$n]->{r}='';
+  if ($ddd[$n]->{t1f} ne ''){
+    $ddd[$n]->{r}= res::time_conv($ddd[$n]->{t1f}, "15:00") - 
+    res::time_conv($ddd[$n]->{t1s}, "10:00") + $shtr1 + $shtr2;
+  }
+}
+
+$ddd[50]->{r}+=24*60;
+
+# определение мест
+my (%r1c,  %rc);
+my (%r1m,  %rm);
+
+for (my $n=0; $n<=$#ddd; $n++){ # сколько мест с одинаковым временем
+  $r1c{$ddd[$n]->{r1}}++ if $ddd[$n]->{r1} ne '';
+  next if $ddd[$n]->{pr1} eq 'su';
+  next if $ddd[$n]->{pr1} eq 'kv';
+  $rc{$ddd[$n]->{r}}++ if $ddd[$n]->{r} ne '';
+}
+
+my $m=1;
+foreach (sort {$a<=>$b} keys %r1c){
+  $m += $r1c{$_};
+  if ($r1c{$_}==1) {$r1m{$_} = $m-1;}
+  else {$r1m{$_} = ($m-$r1c{$_})."-".($m-1);}
+}
+$m=1;
+foreach (sort {$a<=>$b} keys %rc){
+  $m += $rc{$_};
+  if ($rc{$_}==1) {$rm{$_} = $m-1;}
+  else {$rm{$_} = ($m-$rc{$_})."-".($m-1);}
+}
+$r1m{''}='';
+$rm{''}='';
+
+
+# глобальный порядок сортировки
+my $i=0;
+foreach (@ddd) {
+  $_->{m1} = $r1m{$_->{r1}};
+  $_->{m} = $rm{$_->{r}};
+
+  $_->{m} = '' if ($_->{pr1} eq 'su');  ## вне зачета
+  $_->{m} = '' if ($_->{pr1} eq 'kv');  ## вне зачета
+
+  if    ($_->{m}  =~ /^(\d+)/) {$_->{srt} = $1;}
+  elsif ($_->{r} ne '') {$_->{srt} = $i+10000;} ### только первый этап
+  elsif ($_->{m1} =~ /^(\d+)/) {$_->{srt} = $1+20000;} ### только первый этап
+  else  {$_->{srt} = $i+40000; $i++}
+#  print STDERR "$dist\tN: $_->{n}\tM: $_->{m}\tS: $_->{srt}\n";
+}
+
+
+
+### вывод!
+
+open OUT, "> data_out/res03l.htm";
+my $fg_m = '#F00000';
+
+print OUT qq*
+<html><head>
+<style type="TEXT/CSS">
+TH {font-family: sans-serif; font-size:15px; background-color: \#A0A0A0;}
+TD {font-family: sans-serif; font-size:15px; background-color: \#C0C0C0;}
+</STYLE>
+</head>
+<body>
+
+
+<p><table border=0 cellspacing=1 cellpadding=5>
+<tr><th colspan=10><font size="+2">Результаты ММБ2003-lite</font></th>
+<th colspan=2>$res::mmb_count
+</th>
+</tr>
+<tr>
+<td colspan=12>
+<p>дер.Всходы - дер.Починки, 1-2 ноября 2003 года.
+
+<p>Один этап, 23км, 10КП. На КП5 выдавалась новая карта и отмчалось время.
+Старт после 10:00 1 ноября, финиш - до 15:00 2 ноября.
+
+<p>Штраф за невзятие каждого КП -- 1 час.
+
+<p> Карты дистанции:
+<p>
+<a href="03l/map1.png"><img src="03l/map1.jpg" width=316 height=208></a>
+<a href="03l/map2.png"><img src="03l/map2.jpg" width=322 height=220></a>
+</td>
+</tr>
+<tr>
+<th rowspan=2>N</th>
+<th rowspan=2>Команда</th>
+<th rowspan=2>старт</th>
+<th colspan=4>смена карт</th>
+<th colspan=4>финиш</th>
+</tr>
+<tr>
+<th>время</th>
+<th>невз.КП</th>
+<th>рез.</th>
+<th>м</th>
+<th>время</th>
+<th>невз.КП</th>
+<th>рез.</th>
+<th>м</th>
+</tr>
+*;
+
+
+
+foreach ( sort {$a->{srt} <=> $b->{srt}} @ddd) {
+  next if $_->{t1s} eq '';
+
+  $_->{r1} = res::m2t($_->{r1});
+  $_->{r} = res::m2t($_->{r});
+
+  $_->{pr1} = 'вых. за к.в.' if $_->{pr1} eq 'kv';
+  $_->{pr1} = 'сх.уч.' if $_->{pr1} eq 'su';
+
+#  foreach my $f ('kp1','m1','t2s','kp2','m2','m','r1','r2','r'){
+#    $_->{$f} = '&nbsp;' if $_->{$f} eq '';
+#  }
+
+  print OUT "<tr>", reg::html_cell(\@cdata, $_->{n}), "\n";
+  print OUT "<td>$_->{t1s}</td>";
+  print OUT "<td>$_->{tsk}</td>";
+  print OUT "<td align=center>$_->{kp1}</td>\n";
+  print OUT "<td align=center>$_->{r1}</td>\n";
+  print OUT "<td align=center><b>$_->{m1}</b></td>\n";
+ 
+  print OUT "<td>$_->{t1f}</td>";
+  print OUT "<td align=center>$_->{kp2}</td>\n";
+  print OUT "<td align=center><font size=\"+1\">$_->{r}</font></td>\n";
+  print OUT "<td align=center><font color=\"$fg_m\" size=\"+1\">$_->{m}</font> $_->{pr1}</td>\n";
+  print OUT "</tr>\n";
+}
+
+print OUT qq*
+<tr>
+<th colspan=11>
+Подготовка дистанции и проведение марш-броска: Саша Тонис, Слава Завьялов, Андрей Чупикин.
+</th>
+</tr>
+</table>
+</body>
+</html>
+*;
+
+open OUT, "> data_out/ludi03l.txt";
+foreach ( sort {$a->{srt} <=> $b->{srt}} @ddd ) {
+  next if $_->{t1s} eq '';
+  my $nu=0;
+  foreach my $u (1..9){
+    $nu++ if $cdata[$_->{n}]->{"u$u"} ne '';
+  }
+  foreach my $u (1..9){
+    next if $cdata[$_->{n}]->{"u$u"} eq '';
+    printf OUT "%-40s\tN%d", $cdata[$_->{n}]->{"u$u"}, $_->{n};
+    printf OUT " \"%s\"", $cdata[$_->{n}]->{"name"} if $cdata[$_->{n}]->{"name"} ne '';
+    printf OUT " ($nu чел.)\t";
+
+    if ($_->{m} ne '') {
+      print OUT "$_->{r} ($_->{m} место)";}
+    elsif ($_->{r} ne '') {
+      print OUT "$_->{r} (вне зачета)";}
+    else {print OUT "сход с дистанции";}
+    print OUT "\n";
+  }
+}

@@ -1,0 +1,442 @@
+#!/usr/bin/perl -w -I../perl
+
+use strict;
+use res;
+use reg;
+
+# Чтение данных
+my @data;
+res::read_tbl("data_in/e1.dat", \@data, 5);
+res::read_tbl("data_in/e2.dat", \@data, 2);
+res::read_tbl("data_in/e3.dat", \@data, 5);
+res::read_tbl("data_in/et.dat", \@data, 3);
+my @cdata;
+reg::data_read("data_in/mmb05l_a.dat", \@cdata);
+reg::data_read("data_in/mmb05l_b.dat", \@cdata);
+reg::modif_names(\@cdata);
+
+my @ddd;
+
+# Подсчет результатов
+for (my $n=0; $n<=$#data; $n++){
+
+  $ddd[$n]->{n}   = $n;
+
+  $ddd[$n]->{d1}  = ${$data[$n]}[0];
+  $ddd[$n]->{u1}  = ${$data[$n]}[1];
+  $ddd[$n]->{t1s} = '13:05';
+  $ddd[$n]->{t1f} = ${$data[$n]}[2];
+  $ddd[$n]->{kp1} = ${$data[$n]}[3];
+  $ddd[$n]->{pr1} = ${$data[$n]}[4];
+
+  $ddd[$n]->{d2}  = ${$data[$n]}[5];
+  $ddd[$n]->{t2s} = ${$data[$n]}[6];
+
+  $ddd[$n]->{d3}  = ${$data[$n]}[7];
+  $ddd[$n]->{u2}  = ${$data[$n]}[8];
+  $ddd[$n]->{t2f} = ${$data[$n]}[9];
+  $ddd[$n]->{kp2} = ${$data[$n]}[10];
+  $ddd[$n]->{pr2} = ${$data[$n]}[11];
+
+  $ddd[$n]->{d}  = ${$data[$n]}[12];
+  $ddd[$n]->{u}  = ${$data[$n]}[13];
+  $ddd[$n]->{name} = ${$data[$n]}[14];
+
+  my $p=0;
+  foreach (0..14){
+    $p++ if ${$data[$n]}[$_] ne '';
+  }
+  next if $p==0; # нет заполненых полей вообще
+
+  warn "несовпадение дистанций для команды $n: ".
+       "$ddd[$n]->{d} - $ddd[$n]->{d1} - $ddd[$n]->{d2} - $ddd[$n]->{d3}\n"
+    if ((($ddd[$n]->{t1f} ne '')&&($ddd[$n]->{d} ne $ddd[$n]->{d1}))||
+        (($ddd[$n]->{t2s} ne '')&&($ddd[$n]->{d} ne $ddd[$n]->{d2}))||
+        (($ddd[$n]->{t2f} ne '')&&($ddd[$n]->{d} ne $ddd[$n]->{d3})));
+
+  warn "не совпадает число участников в команде $n: ".
+       "$ddd[$n]->{u} - $ddd[$n]->{u1} - $ddd[$n]->{u2}\n"
+    if ((($ddd[$n]->{t1f} ne '')&&($ddd[$n]->{u} ne $ddd[$n]->{u1})&&($ddd[$n]->{pr1}!~/su/))||
+        (($ddd[$n]->{t2f} ne '')&&($ddd[$n]->{u1} ne $ddd[$n]->{u2})&&($ddd[$n]->{pr2}!~/su/)));
+
+  my $shtr1;
+  my $shtr2;
+  $shtr1 = res::kp_conv($ddd[$n]->{kp1}, 
+  {1=>120, 2=>120, 3=>120, 4=>120, 5=>120, 6=>120, 7=>120}) 
+    if $ddd[$n]->{d} eq 'a';
+  $shtr1 = res::kp_conv($ddd[$n]->{kp1}, 
+  {1=>120, 2=>120, 3=>120, 4=>120, 5=>120, 6=>120, 7=>120, 8=>120,
+   9=>120, 10=>120, 11=>120, 12=>120})
+    if $ddd[$n]->{d} eq 'b';
+
+  $shtr2 = res::kp_conv($ddd[$n]->{kp2}, 
+  {8=>120, 9=>120, 10=>120, 11=>120, 12=>120, 13=>120})
+    if $ddd[$n]->{d} eq 'a';
+  $shtr2 = res::kp_conv($ddd[$n]->{kp2}, 
+  {13=>120, 14=>120, 15=>120, 16=>120, 17=>120, 18=>120} )
+    if $ddd[$n]->{d} eq 'b';
+
+  $ddd[$n]->{r1}='';
+  if ($ddd[$n]->{t1f} ne ''){
+    $ddd[$n]->{r1}= res::time_conv($ddd[$n]->{t1f}, "12:00") - 
+    res::time_conv("13:05", "13:05") + $shtr1;
+  }
+  $ddd[$n]->{r2}='';
+  if (($ddd[$n]->{t2s} ne '')&&($ddd[$n]->{t2f} ne '')){
+    $ddd[$n]->{r2}= 24*60 + res::time_conv($ddd[$n]->{t2f}, "00:00") - 
+    res::time_conv($ddd[$n]->{t2s}, "16:00") + $shtr2;
+  }
+  $ddd[$n]->{r} ='';
+  $ddd[$n]->{r} = $ddd[$n]->{r1}+$ddd[$n]->{r2}
+    if (($ddd[$n]->{r1} ne '')&&($ddd[$n]->{r2} ne ''));
+
+#  printf "%3d %1s %20s %5s %5s %5s\n", $n,  $ddd[$n]->{d}, $ddd[$n]->{name},
+#  res::m2t($ddd[$n]->{r1}), res::m2t($ddd[$n]->{r2}), 
+#  res::m2t($ddd[$n]->{r});
+
+}
+
+foreach my $dist ('a','b'){
+
+# определение мест
+my (%r1c, %r2c, %rc);
+my (%r1m, %r2m, %rm);
+
+for (my $n=0; $n<=$#ddd; $n++){ # сколько мест с одинаковым временем
+  next if $ddd[$n]->{d} ne $dist;
+  $r1c{$ddd[$n]->{r1}}++ if $ddd[$n]->{r1} ne '';
+  $r2c{$ddd[$n]->{r2}}++ if $ddd[$n]->{r2} ne '';
+  next if $ddd[$n]->{pr1} eq 'su';
+  next if $ddd[$n]->{pr2} eq 'su';
+  next if $ddd[$n]->{pr1} eq 'kv';
+  next if $ddd[$n]->{pr2} eq 'kv';
+  $rc{$ddd[$n]->{r}}++ if $ddd[$n]->{r} ne '';
+}
+
+my $m=1;
+foreach (sort {$a<=>$b} keys %r1c){
+  $m += $r1c{$_};
+  if ($r1c{$_}==1) {$r1m{$_} = $m-1;}
+  else {$r1m{$_} = ($m-$r1c{$_})."-".($m-1);}
+}
+$m=1;
+foreach (sort {$a<=>$b} keys %r2c){
+  $m += $r2c{$_};
+  if ($r2c{$_}==1) {$r2m{$_} = $m-1;}
+  else {$r2m{$_} = ($m-$r2c{$_})."-".($m-1);}
+}
+$m=1;
+foreach (sort {$a<=>$b} keys %rc){
+  $m += $rc{$_};
+  if ($rc{$_}==1) {$rm{$_} = $m-1;}
+  else {$rm{$_} = ($m-$rc{$_})."-".($m-1);}
+}
+$r1m{''}='';
+$r2m{''}='';
+$rm{''}='';
+
+
+# глобальный порядок сортировки
+my $i=0;
+foreach (@ddd) {
+  $_->{srt} = 50000;
+  next if $_->{d} ne $dist;
+  $_->{m1} = $r1m{$_->{r1}};
+  $_->{m2} = $r2m{$_->{r2}};
+  $_->{m} = $rm{$_->{r}};
+
+  $_->{m} = '' if ($_->{pr1} eq 'su');  ## вне зачета
+  $_->{m} = '' if ($_->{pr2} eq 'su');  ## вне зачета
+  $_->{m} = '' if ($_->{pr1} eq 'kv');  ## вне зачета
+  $_->{m} = '' if ($_->{pr2} eq 'kv');  ## вне зачета
+
+  if    ($_->{m}  =~ /^(\d+)/) {$_->{srt} = $1;}
+  elsif ($_->{m2} =~ /^(\d+)/) {$_->{srt} = $1+10000;} ### внезачетники
+  elsif ($_->{m1} =~ /^(\d+)/) {$_->{srt} = $1+20000;} ### только первый этап
+#  elsif ($_->{t1s} ne '') {$_->{srt} = $i+30000; $i++}  ### только стартовавшие
+  else  {$_->{srt} = $i+40000; $i++}
+#  print STDERR "$dist\tN: $_->{n}\tM: $_->{m}\tS: $_->{srt}\n";
+}
+
+ # dist
+
+
+### вывод!
+
+open OUT, "> data_out/res05l$dist.htm";
+my $fg_m = '#F00000';
+
+print OUT qq*
+<html><head>
+<style type="TEXT/CSS">
+TH {font-family: sans-serif; font-size:15px; background-color: \#A0A0A0;}
+TD {font-family: sans-serif; font-size:15px; background-color: \#C0C0C0;}
+</STYLE>
+</head>
+<body>
+*;
+
+print OUT qq*
+<p><table border=0 cellspacing=1 cellpadding=5>
+<tr><th colspan=10><font size="+2">Результаты ММБ2005-lite, дистанция А</font></th>
+<th colspan=2>$res::mmb_count
+</th>
+</tr>
+<tr>
+<td colspan=12>
+<p>пл.Некрасовская - пл.Морозки, 29-30 ноября
+
+<p>Первый этап: 7 КП и 20 км. Общий старт в 13:05 субботы 29 ноября,
+контрольное время до 10:00 воскресенья.
+
+<p>Второй этап: 8 КП, 15 км. Старт по мере готовности до 10:00
+воскресенья, контрольное время -- до 18:00 воскресенья. Для команд,
+опоздавших к 10:00 на пром.финиш время финиша 1-го и время старта 2-го
+этапа считается равным 10:00.
+
+<p>Штраф за невзятие каждого КП -- 2 часа.
+
+<p> Карты дистанции:
+<p>
+<a href="05l/p0.png"> <img src="05l/p0.jpg"  width=113 height=160 alt="0"></a>
+<a href="05l/p1a.png"><img src="05l/p1a.jpg" width=177 height=250 alt="1a"></a>
+<a href="05l/p2a.png"><img src="05l/p2a.jpg" width=200 height=160 alt="2a"></a>
+
+<p><a href="05l/lega.htm">Легенда</a> (она же в форматах <a href="05l/leg.tex">[TEX]</a> и <a href="05l/leg.ps">[PS]</a>)
+</td>
+</tr>
+* if $dist eq 'a'; 
+
+print OUT qq*
+<p><table border=0 cellspacing=1 cellpadding=5>
+<tr><th colspan=10><font size="+2">Результаты ММБ2005-lite, дистанция Б</font></th>
+<th colspan=2>$res::mmb_count
+</th>
+</tr>
+<tr>
+<td colspan=12>
+<p>пл.Некрасовская - пл.Морозки.
+
+<p>Первый этап: 12 КП и 30 км. Общий старт в 13:05 субботы 29 ноября,
+контрольное время до 10:00 воскресенья.
+
+<p>Второй этап: 8 КП, 15 км. Старт по мере готовности до 10:00
+воскресенья, контрольное время -- до 18:00 воскресенья. Для команд,
+опоздавших к 10:00 на пром.финиш время финиша 1-го и время старта 2-го
+этапа считается равным 10:00.
+
+<p>Штраф за невзятие каждого КП -- 2 часа.
+
+<p> Карты дистанции:
+<p>
+<a href="05l/p0.png"> <img src="05l/p0.jpg"  width=113 height=160 alt="0"></a>
+<a href="05l/p1b.png"><img src="05l/p1b.jpg" width=177 height=250 alt="1b"></a>
+<a href="05l/p2b.png"><img src="05l/p2b.jpg" width=200 height=160 alt="2b"></a>
+
+<p><a href="05l/legb.htm">Легенда</a> (она же в форматах <a href="05l/leg.tex">[TEX]</a> и <a href="05l/leg.ps">[PS]</a>)
+</td>
+</tr>
+* if $dist eq 'b'; 
+
+
+print OUT qq*
+<tr>
+<th rowspan=2>N</th>
+<th rowspan=2>Команда</th>
+<th colspan=4>первый этап</th>
+<th colspan=4>второй этап</th>
+<th colspan=2>итог</th>
+</tr>
+<tr>
+<th>ст. - фин.</th>
+<th>невз.КП</th>
+<th>рез.</th>
+<th>м</th>
+<th>ст. - фин.</th>
+<th>невз.КП</th>
+<th>рез.</th>
+<th>м</th>
+<th>рез.</th>
+<th>м</th>
+</tr>
+*;
+
+
+
+foreach ( sort {$a->{srt} <=> $b->{srt}} @ddd) {
+#  next if $_->{u1} eq '';
+  next if $_->{d} ne $dist;
+
+  $_->{r1} = res::m2t($_->{r1});
+  $_->{r2} = res::m2t($_->{r2});
+  $_->{r} = res::m2t($_->{r});
+
+  $_->{pr2} = 'вых. за к.в.' if $_->{pr2} eq 'kv';
+  $_->{pr1} = 'сх.уч.' if $_->{pr1} eq 'su';
+  $_->{pr2} = 'сх.уч.' if $_->{pr2} eq 'su';
+  $_->{pr2} = 'время финиша приблизительно' if $_->{pr2} eq 'fa';
+
+#  foreach my $f ('kp1','m1','t2s','kp2','m2','m','r1','r2','r'){
+#    $_->{$f} = '&nbsp;' if $_->{$f} eq '';
+#  }
+
+  print OUT "<tr>", reg::html_cell(\@cdata, $_->{n}), "\n";
+  print OUT "<td>$_->{t1s}";
+  print OUT "&nbsp;-&nbsp;$_->{t1f}" if $_->{t1f} ne '';
+  print OUT "<br>$_->{pr1}" if $_->{pr1} ne '';
+  print OUT "</td>\n";
+  print OUT "<td align=center>$_->{kp1}</td>\n";
+  print OUT "<td align=center>$_->{r1}</td>\n";
+  print OUT "<td align=center>$_->{m1}</td>\n";
+ 
+  print OUT "<td>$_->{t2s}";
+  print OUT "&nbsp;-&nbsp;$_->{t2f}" if $_->{t2f} ne '';
+  print OUT "<br>$_->{pr2}" if $_->{pr2} ne '';
+  print OUT "</td>\n";
+  print OUT "<td align=center>$_->{kp2}</td>\n";
+  print OUT "<td align=center>$_->{r2}</td>\n";
+  print OUT "<td align=center>$_->{m2}</td>\n";
+  print OUT "<td align=center><font size=\"+1\">$_->{r}</font></td>\n";
+  print OUT "<td align=center><font color=\"$fg_m\" size=\"+1\">$_->{m}</font></td>\n";
+  print OUT "</tr>\n";
+}
+print OUT qq*
+<tr>
+<th colspan=12>
+Подготовка дистанции: Саша Тонис, Саша Веретенников, Слава Завьялов.<br>
+Проведение марш-броска: те же и Дима Шварц, Женя Домбровский, Миша Агеев, Леля и Ася Каменские, Света<br>
+А.Шигаев предоставил компостеры и плакаты на старт и финиш.<br>
+</th>
+</tr>
+</table>
+</body>
+</html>
+*;
+
+open OUT, "> data_out/ludi05l$dist.txt";
+foreach ( sort {$a->{srt} <=> $b->{srt}} @ddd ) {
+  next if $_->{d} ne $dist;
+  next if $_->{t1s} eq '';
+  my $nu=0;
+  foreach my $u (1..9){
+    $nu++ if $cdata[$_->{n}]->{"u$u"} ne '';
+  }
+  foreach my $u (1..9){
+    next if $cdata[$_->{n}]->{"u$u"} eq '';
+    printf OUT "%-40s\tN%d%s", $cdata[$_->{n}]->{"u$u"}, $_->{n}, ($_->{d} eq 'a' ?'А':'Б');
+    printf OUT " \"%s\"", $cdata[$_->{n}]->{"name"} if $cdata[$_->{n}]->{"name"} ne '';
+    printf OUT " ($nu чел.)\t";
+
+    if ($_->{m} ne '') {
+      print OUT "$_->{r} ($_->{m} место)";}
+    elsif ($_->{r} ne '') {
+      print OUT "$_->{r} (вне зачета)";}
+    else {print OUT "сход с дистанции";}
+    print OUT "\n";
+  }
+}
+
+}
+
+
+open OUT, "> data_out/mmb05l.tex";
+
+print OUT qq#
+\\documentclass[10pt]{article}
+\\usepackage[koi8-ru]{inputenc}
+\\usepackage[russian]{babel}
+\\usepackage{longtable}
+\\usepackage{lscape}
+\\textheight=27cm \\textwidth=19.5cm
+\\oddsidemargin=-0.7in
+\\evensidemargin=-.7in
+\\topmargin=-1in
+\\tolerance=600
+\\pagestyle{empty}
+
+
+\\begin{document}
+\\begin{landscape}
+\\renewcommand{\\arraystretch}{1.2}
+\\section*{\\sffamily Результаты ММБ2005-lite}
+
+\\subsection*{\\sffamily О дистанции}
+
+\\sffamily
+\\noindent Соревнования проводились в двух зачетах: А (35 км) и Б (45 км).
+
+\\noindent Старт у пл.Некрасовская, пром.финиш~--- на берегу пруда на р.Волгуша у 
+санатория Горки, финиш~--- недалеко от станции Морозки.
+
+\\noindent Первый этап: 7 КП и 20 км на дистанции А, 12 КП и 30 км
+на дистанции Б. Общий старт в 13:05 субботы 29 ноября, контрольное
+время до 10:00 воскресенья.
+
+\\noindent Второй этап: 8 КП, 15 км на обеих дистанциях. Старт по мере готовности
+до 10:00 воскресенья, контрольное время -- до 18:00 воскресенья.
+
+\\noindent Для команд, опоздавших к 10:00 на пром.финиш время финиша 1-го этапа и
+время старта 2-го этапа считается равным 10:00.
+
+\\noindent Штраф за невзятие каждого КП -- 2 часа.
+
+\\noindent Карты дистанции и результаты можно найти по адресу
+{\\bfseries http://slazav.mccme.ru/mmb/res05l.htm}
+
+#;
+
+foreach my $dist ('a','b'){
+my $rudist = ($dist eq 'a')?'А':'Б';
+
+print OUT qq%
+\\subsection*{\\sffamily Дистанция $rudist}
+\\begin{longtable}{|p{180pt}|cccc|cccc|cc|}\\hline
+\\hfil\\sffamily команда \\hfil&
+\\multicolumn{4}{|c|}{\\sffamily первый этап}&
+\\multicolumn{4}{|c|}{\\sffamily второй этап}&
+\\multicolumn{2}{|c|}{\\sffamily итог}\\\\
+
+&\\sffamily ст. - фин.&\\sffamily невз.КП&\\sffamily рез.&\\sffamily место&
+ \\sffamily ст. - фин.&\\sffamily невз.КП&\\sffamily рез.&\\sffamily место&
+ \\sffamily рез.&\\sffamily место\\\\\\hline
+%;
+
+foreach ( sort {$a->{srt} <=> $b->{srt}} @ddd ) {
+#  next if $_->{u1} eq '';
+  next if $_->{d} ne $dist;
+
+  print OUT reg::tex_cell(\@cdata, $_->{n}), "&\n";
+  print OUT "\\sffamily 13:05~-~$_->{t1f}";
+  print OUT " $_->{pr1}" if $_->{pr1} ne '';
+  print OUT "&\n";
+  print OUT "\\sffamily $_->{kp1}&\n";
+  print OUT "\\sffamily $_->{r1}&\n";
+  print OUT "\\sffamily $_->{m1}&\n";
+ 
+  print OUT "\\sffamily $_->{t2s}";
+  print OUT "~-~$_->{t2f}" if $_->{t2f} ne '';
+  print OUT " $_->{pr2}" if $_->{pr2} ne '';
+  print OUT "&\n";
+  print OUT "\\sffamily $_->{kp2}&\n";
+  print OUT "\\sffamily $_->{r2}&\n";
+  print OUT "\\sffamily $_->{m2}&\n";
+  print OUT "\\sffamily\\bfseries $_->{r}&\n";
+  print OUT "\\sffamily\\bfseries $_->{m}\\\\\n";
+}
+  print OUT "\\hline\\end{longtable}\n";
+  print OUT "\\newpage\n" if $dist eq 'a';
+
+}
+print OUT qq*
+
+\\noindent Подготовка дистанции: Саша Тонис, Саша Веретенников, Слава Завьялов.
+
+\\noindent Проведение марш-броска: те же и Дима Шварц, Женя Домбровский, Миша
+Агеев, Леля и Ася Каменские, Света.
+
+\\noindent А.Шигаев предоставил компостеры и плакаты на старт и финиш.
+\\end{landscape}
+\\end{document}
+*;
+
+

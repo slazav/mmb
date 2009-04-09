@@ -1,0 +1,11 @@
+#!/bin/sh -eu
+
+# Note: I don't publish original_data/* with email's
+
+[ -d "original_data" ] || exit 0
+
+for i in original_data/*.dat; do
+  yaml="data/$(basename $i .dat).yaml"
+  [ "$i" -ot "$yaml" ] ||
+    ( echo " * $yaml"; ./org2yaml $i > "$yaml" )
+done

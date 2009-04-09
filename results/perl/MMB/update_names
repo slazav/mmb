@@ -1,0 +1,21 @@
+#!/usr/bin/perl -w -I../
+
+use strict;
+use YAML::Tiny;
+use MMB::Names;
+use MMB::IO;
+
+#my @data;
+#MMB::IO::read_yaml('data_in/data_reg.yaml', \@data, 'people');
+
+#foreach (@data){
+#  next unless defined;
+#  foreach (@{$_->{people}}){
+#    print "$_\n" unless MMB::Names::test_name($_);
+#  }
+#}
+
+MMB::Names::print_names();
+
+print "\n";
+#MMB::Names::modif_names(\@data);

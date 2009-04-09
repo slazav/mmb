@@ -1,0 +1,27 @@
+#!/usr/bin/perl -w -I../results/perl
+
+use strict;
+use reg;
+use YAML::Tiny;
+
+die "usage: $0 <file> [<dist>] > out\n"
+  if $#ARGV==-1;
+
+my @cdata;
+reg::data_read($ARGV[0], \@cdata);
+
+for(my $n=0; $n<=$#cdata; $n++){
+  next if !defined($cdata[$n]);
+  my @u;
+  foreach (1..9){
+    push @u, $cdata[$n]->{"u$_"} if ($cdata[$n]->{"u$_"} ne '');
+    delete ($cdata[$n]->{"u$_"});
+  }
+  $cdata[$n]->{N} = $n;
+  delete ($cdata[$n]->{mail});
+  delete ($cdata[$n]->{maps});
+  delete ($cdata[$n]->{md5});
+  $cdata[$n]->{people}=\@u;
+  $cdata[$n]->{dist}=$ARGV[1] if defined($ARGV[1]);
+  print YAML::Tiny::Dump($cdata[$n]);
+}

@@ -1,0 +1,192 @@
+#!/usr/bin/perl -w
+
+use strict;
+use locale;
+use POSIX qw(locale_h);
+
+setlocale(LC_COLLATE, "ru_RU.KOI8-R");
+setlocale(LC_CTYPE, "ru_RU.KOI8-R");
+
+
+my @mmb  =  ('03', '03l', '04', '04l', '05', '05la', '05lb', '06a', '06b',
+             '06oa', '06ob', '07a', '07b', '07o', '08a', '08b', '08oa', '08ob');
+my @mmb1  = ('03', '03l', '04', '04l', '05', '05l', '06', '06o', '07', '07o', '08', '08o');
+
+my %best = ('03',   13*60+14,
+            '03l',   4*60+14,
+            '04',   19*60+40,
+            '04l',   8*60+57,
+            '05',   20*60+50,
+            '05la', 11*60+02, '05lb', 13*60+11,
+            '06a',  18*60+37, '06b',  18*60+24,
+            '06oa',  8*60+46, '06ob',  8*60+42,
+            '07a',  15*60+31, '07b',  19*60+15,
+            '07o',  23*60+43,
+            '08a',  21*60+54, '08b',  23*60+11,
+            '08oa', 25*60+48, '08ob', 18*60+21,
+           );
+
+$best{'05la'} = $best{'05lb'} * 35.0/45.0;
+$best{'06a'}  = $best{'06b'}  * 57.0/67.0;
+$best{'06oa'} = $best{'06ob'} * 38.0/48.0;
+$best{'07a'}  = $best{'07b'}  * 60.0/83.0;
+$best{'08a'}  = $best{'08b'}  * 60.0/71.0;
+$best{'08oa'} = $best{'08ob'} * 67.0/76.0;
+
+my %data;
+foreach my $mmb (@mmb){
+
+  my $mmb1 = $mmb; $mmb1 =~ s/[ab]$//;
+
+  open IN, "../results/$mmb1/data_out/ludi$mmb.txt"
+    or die "can't open ludi$mmb.txt\n";
+
+  foreach (<IN>){
+
+    my ($l, $r1, $r2) = split /\t/;
+    $l =~ s/Наташа/Наталья/;
+    $l =~ s/Гриша/Григорий/;
+    $l =~ s/Катерина/Екатерина/;
+    $l =~ s/Аня/Анна/;
+
+    $l =~ s/Саморукова/Рукавицына/;
+    $l =~ s/\s+$//;
+
+
+    if ($l =~ s/,\s*(\d+)$//){ 
+      if (exists($data{$l}->{y}) && ($data{$l}->{y}!=$1)){
+        warn "Тезки? $l, $1 и $l, $data{$l}->{y}?\n";
+        $l = "$l, $1";
+      } else {
+        $data{$l}->{y} = $1;
+      }
+    }
+
+    warn "$l на mmb$mmb встречается дважды\n" if exists($data{$l}->{$mmb});
+
+    $r1 =~ s/^N(\d+)/<a href=\"res$mmb.htm\#$1\">$1<\/a> /;
+    my $bgcolor="\#C0C0C0";
+
+
+    $data{$l}->{r} = 0.0 unless exists($data{$l}->{r});
+    if ($r2=~/(\d+):(\d\d)\s+\([\d\-]+\s+место\)$/){ 
+      $data{$l}->{r} += $best{$mmb}/(1.0*($1*60+$2));
+#      print STDERR "$1:$2 $data{$l}->{r}\n";
+      $bgcolor="\#A0A0A0";
+    }
+    $data{$l}->{$mmb1} = "<td align=center bgcolor=\"$bgcolor\">$r1<br><b>$r2</b></td>\n";
+  }
+}
+
+foreach ('', 'r'){
+open OUT, "> ludi$_.htm" or die "can't open ludi$_.htm\n";
+print OUT qq*
+<html><head>
+<style type="TEXT/CSS">
+TH {font-family: sans-serif; font-size:15px; background-color: \#A0A0A0;}
+TD {font-family: sans-serif; font-size:15px;}
+</STYLE>
+</head>
+<body>
+<table cellspacing=1 cellpadding=5>
+*;
+
+my $w1 = 2+$#mmb1+length($_);
+my $w2 = 4+$#mmb1+length($_);
+
+if ($_ eq 'r'){
+   print OUT qq*
+<tr><th colspan=$w1><font size="+2">Рейтинг участников ММБ</font></th>
+<th colspan=1> <!--Rating\@Mail.ru COUNTEr--><a
+target=_top   href="http://top.mail.ru/jump?from=991443"><img  
+src="http://d0.c2.bf.a0.top.list.ru/counter?id=991443;t=49"   border=0
+height=31 width=88   alt="Рейтинг\@Mail.ru"/></a><!--/COUNTER-->
+</th>
+</tr><tr>
+
+<td colspan=$w2 bgcolor=\"\#C0C0C0\"> При построении рейтинга
+суммируется отношение лучшего результата к   результату данного
+участника на каждом из соревнований. То есть, за   первое место
+добавляется 1, за прохождение дистанции в два раза   медленнее лидера
+-- 1/2 и т.п. Коэффициент для дистанции А: La/Lb \* Tb/Ta (La, Lb -
+длины дистанций, Ta, Tb - времена лидеров). В списке нет участников,
+которые не   попали в зачет ни на одном из соревнований.   <a
+href="ludi.htm">Смотрите также полный алфавитный список
+участников.</a>
+
+</td></tr>
+<tr><th>N</th><th>участник</th>
+  *;
+  foreach my $mmb1 (@mmb1){
+    print OUT "<th>$mmb1</th>";
+  }
+  print OUT "<th>R</th></tr>\n";
+
+  my $n=0;
+
+  foreach my $u (sort {$data{$b}->{r} <=> $data{$a}->{r}} keys %data){
+    $n++;
+    last if $data{$u}->{r} ==0;
+    print OUT "<tr><th>$n</th><td bgcolor=\"\#C0C0C0\">$u";
+    print OUT ", $data{$u}->{y}" if defined($data{$u}->{y});
+    print OUT "</td>\n";
+    foreach my $mmb1 (@mmb1){
+      if (defined $data{$u}->{$mmb1}){
+        print OUT $data{$u}->{$mmb1};
+      }
+      else {print OUT "<td bgcolor=\"\#C0C0C0\"></td>\n"}
+    }
+    printf OUT "<td bgcolor=\"\#C0C0C0\">%8.5f</td>\n", $data{$u}->{r};
+    print OUT "</tr>\n";
+  }
+} else {
+  print OUT qq* 
+  <tr><th colspan=$w1><font size="+2">Алфавитный список участников ММБ</font></th>
+  <th colspan=1>
+  <!--Rating\@Mail.ru COUNTEr--><a target=_top
+  href="http://top.mail.ru/jump?from=991443"><img
+  src="http://d0.c2.bf.a0.top.list.ru/counter?id=991443;t=49"
+  border=0 height=31 width=88
+  alt="Рейтинг\@Mail.ru"/></a><!--/COUNTER-->
+  </th>
+  </tr>
+  <tr><th>N</th><th>участник</th>
+  *;
+  foreach my $mmb1 (@mmb1){
+    print OUT "<th>$mmb1</th>";
+  }
+  print OUT "</tr>\n";
+
+  my $n=0;
+
+
+  foreach my $u (sort keys %data){
+    $n++;
+    print OUT "<tr><th>$n</th><td bgcolor=\"\#C0C0C0\">$u";
+    print OUT ", $data{$u}->{y}" if defined($data{$u}->{y});
+    print OUT "</td>\n";
+    foreach my $mmb1 (@mmb1){
+      if (defined $data{$u}->{$mmb1}){
+        print OUT $data{$u}->{$mmb1};
+      }
+      else {print OUT "<td bgcolor=\"\#C0C0C0\"></td>\n"}
+    }
+    print OUT "</tr>\n";
+  }
+
+}
+
+
+
+print OUT qq*
+</table>
+</body>
+<html>
+*;
+}
+
+sub t2m{
+  my $t = shift;
+  die "bad time format\n" unless ($t =~ /(\d+):(\d\d)/);
+  return $1*60+$2;
+}

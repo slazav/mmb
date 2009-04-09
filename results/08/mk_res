@@ -1,0 +1,320 @@
+#!/usr/bin/perl -w -I../perl
+
+use strict;
+use res_new;
+use reg;
+use MMB::CPList;
+use MMB::IO;
+use MMB::Res;
+use MMB::HTML;
+use MMB::CSV;
+use MMB::Names;
+
+my $mmb_id='08';
+my $mmb_name='ММБ2008';
+
+# Чтение данных
+my @data;
+# Читаем таблицы протоколов.
+# В первой колонке должен быть номер команды, в остальных - указанные поля
+MMB::IO::read_table('data_in/data_start',  \@data, 'd_st','t_st');
+MMB::IO::read_table('data_in/data_smena',  \@data, 'd_sm','t_sm','u_sm','kp_spec');
+MMB::IO::read_table('data_in/data_k13',    \@data, 'd_13','t_13','u_13','kp_13');
+MMB::IO::read_table('data_in/data_promf',  \@data, 'd_pf','t_pf','u_pf','kp_1e');
+MMB::IO::read_table('data_in/data_finish', \@data, 'd_fin','t_fin','u_fin','kp_2e');
+
+# Читаем регистрационные данные (полученные из скрипта регистрации, 
+# исправленные по регистрационным протоколам)
+MMB::IO::read_yaml('data_in/data_reg.yaml', \@data, 'name', 'people', 'gps', 'dist');
+
+# читаем табличку примечаний к командам и участникам
+# <номер команды> <номер участника> <примечание>
+MMB::IO::read_comm('data_in/data_comm', \@data);
+
+MMB::Names::modif_names(\@data);
+
+foreach(@data){
+  next if !defined $_;
+  
+  # эти поля должны быть определены для любой команды!
+  my @f = ('N', 'people', 'dist', 'd_st');
+  die "\nНе определено одно из полей (", join(" ", @f), ") для команды:\n",
+    YAML::Tiny::Dump($_)  if ! MMB::IO::test_def($_, @f);
+
+  # дистанция во всех активных точках должна совпадать для любой команды!
+  @f = ('dist', 'd_st', 'd_sm', 'd_13', 'd_pf', 'd_fin');
+  die "\nНе совпадае дистанция (", join(" ", @f), ") для команды:\n",
+    YAML::Tiny::Dump($_)  if ! MMB::IO::test_eq($_, @f);
+
+  # проверка, что все сошедшие участники упомянуты в комментариях
+  @f = ('u_sm', 'u_13', 'u_pf', 'u_fin');
+  warn "\nЧто-то не так с числом участников (", join(" ", @f), ") для команды:\n",
+    YAML::Tiny::Dump($_)  if ! MMB::IO::test_people($_, @f);
+
+
+  # пересобираем списки невзятых КП
+  $_->{kp_spec} = MMB::CPList::repack_list($_->{kp_spec}) if exists($_->{kp_spec});
+  $_->{kp_13}   = MMB::CPList::repack_list($_->{kp_13})   if exists($_->{kp_13});
+  $_->{kp_1e}   = MMB::CPList::repack_list($_->{kp_1e})   if exists($_->{kp_1e});
+  $_->{kp_2e}   = MMB::CPList::repack_list($_->{kp_2e})   if exists($_->{kp_1e});
+
+  # k_13 = k_1e урезанному до 1-12
+  warn "\nЧто-то не так с числом КП на п/ф и на 13кп для команды:\n",
+    YAML::Tiny::Dump($_)  if defined $_->{kp_13} && defined $_->{kp_1e} &&
+                             (MMB::CPList::cut($_->{kp_1e},"1-13") ne $_->{kp_13});
+  
+  # считаем штрафы
+  $_->{pen_spec}   = MMB::CPList::cp_pen($_->{kp_spec}, {"0-24", 30}) if exists $_->{kp_spec};
+
+  if ($_->{dist} eq 'a'){ # дистанция А
+    $_->{kp_sm}    = MMB::CPList::cut($_->{kp_1e},"1-6")              if exists $_->{kp_1e};
+    $_->{pen_sm}   = MMB::CPList::cp_pen($_->{kp_sm}, {"1-6",   120}) if exists $_->{kp_sm};
+    $_->{pen_1e}   = MMB::CPList::cp_pen($_->{kp_1e}, {"1-10",  120}) if exists $_->{kp_1e};
+    $_->{pen_2e}   = MMB::CPList::cp_pen($_->{kp_2e}, {"11-17", 120}) if exists $_->{kp_2e};
+  } 
+  elsif ($_->{dist} eq 'b'){ # дистанция А
+    $_->{kp_sm}    = MMB::CPList::cut($_->{kp_1e},"1-7")              if exists $_->{kp_1e};
+    $_->{pen_sm}   = MMB::CPList::cp_pen($_->{kp_sm},   {"1-7",   120}) if exists $_->{kp_sm};
+    $_->{pen_1e}   = MMB::CPList::cp_pen($_->{kp_1e},   {"1-13",  120}) if exists $_->{kp_1e};
+    $_->{pen_2e}   = MMB::CPList::cp_pen($_->{kp_2e},   {"14-21", 120}) if exists $_->{kp_2e};
+  }
+
+  # время старта 2 этапа: 
+  # если команда финишировала на 1 эт. до 7:00 - то 7:00, если позже, 
+  # то = времени финиша.
+  if (exists($_->{t_pf})){
+    if (MMB::Res::tconv($_->{t_pf}, "10:30") > (24+7)*60){
+      $_->{t_st2} = $_->{t_pf};
+    } else {
+      $_->{t_st2} = "7:00";
+    }
+  }
+
+  # подсчет результатов (в минутах)
+  $_->{res_sm} = MMB::Res::tconv($_->{t_sm}, "6:00") - 
+                 MMB::Res::tconv($_->{t_st}, "20:00") + 24*60 + 
+                 $_->{pen_sm} + $_->{pen_spec}
+    if exists($_->{t_st}) && exists($_->{t_sm}) && exists($_->{pen_sm}) && exists($_->{pen_spec});
+
+  $_->{res_1e} = MMB::Res::tconv($_->{t_pf}, "10:40") - 
+                 MMB::Res::tconv($_->{t_st}, "20:00") + 24*60 + 
+                 $_->{pen_1e} + $_->{pen_spec}
+    if exists($_->{t_st}) && exists($_->{t_pf}) && exists($_->{pen_1e}) && exists($_->{pen_spec});
+
+  $_->{res_2e} = MMB::Res::tconv($_->{t_fin}, "14:00") - 
+                 MMB::Res::tconv($_->{t_st2},  "6:00") + 
+                 $_->{pen_2e}
+    if exists($_->{t_st2}) && exists($_->{t_fin}) && exists($_->{pen_2e});
+
+  $_->{res} = $_->{res_1e} + $_->{res_2e}
+    if exists($_->{res_1e}) && exists($_->{res_2e});
+
+}
+
+# считаем места
+MMB::Res::make_places(\@data, 'a', 'res_sm', 'place_sm');
+MMB::Res::make_places(\@data, 'a', 'res_1e', 'place_1e');
+MMB::Res::make_places(\@data, 'a', 'res_2e', 'place_2e');
+MMB::Res::make_places(\@data, 'a', 'res',    'place');
+
+MMB::Res::make_places(\@data, 'b', 'res_sm', 'place_sm');
+MMB::Res::make_places(\@data, 'b', 'res_1e', 'place_1e');
+MMB::Res::make_places(\@data, 'b', 'res_2e', 'place_2e');
+MMB::Res::make_places(\@data, 'b', 'res',    'place');
+
+
+# кидаем все данные в yaml!
+YAML::Tiny::DumpFile("data_out/res$mmb_id.yaml", @data);
+`gzip -f "data_out/res$mmb_id.yaml"`;
+
+# кидаем данные в csv!
+open OUT, "> data_out/res$mmb_id.csv" or die "can't write to res$mmb_id.csv";
+my @fields = ('t_st', 't_sm', 't_13', 't_pf', 't_st2', 't_fin', 
+    'kp_spec', 'kp_13', 'kp_1e', 'kp_2e', 'res_sm', 'place_sm', 
+    'res_1e', 'place_1e', 'res_2e', 'place_2e', 'res', 'place');
+print OUT MMB::CSV::DumpH(@fields), "\n";
+foreach (@data) {
+  next if !defined;
+  print OUT MMB::CSV::Dump($_, @fields), "\n";
+}
+close OUT;
+`gzip -f "data_out/res$mmb_id.csv"`;
+
+# порядок сортировки
+# и заодно преобразуем результаты к часам:минутам
+# важно, что порядок сортировки определяется и для неопределенных ранее команд!
+my $i=0;
+foreach (@data) {
+  if    ((exists $_->{place}) && ($_->{place}        =~ /^(\d+)/))   {$_->{srt} = $1;}
+  elsif ((exists $_->{place_2e}) && ($_->{place_2e}  =~ /^(\d+)/))   {$_->{srt} = 10000+$1;} # таких не должно быть
+  elsif ((exists $_->{place_1e}) && ($_->{place_1e}  =~ /^(\d+)/))   {$_->{srt} = 20000+$1;}
+  elsif ((exists $_->{place_sm}) && ($_->{place_sm}  =~ /^(\d+)/))   {$_->{srt} = 30000+$1;}
+  else  {$_->{srt} = $i+40000; $i++}
+
+  $_->{res_sm} = MMB::Res::m2t($_->{res_sm}) if exists ($_->{res_sm});
+  $_->{res_1e} = MMB::Res::m2t($_->{res_1e}) if exists ($_->{res_1e});
+  $_->{res_2e} = MMB::Res::m2t($_->{res_2e}) if exists ($_->{res_2e});
+  $_->{res}    = MMB::Res::m2t($_->{res})    if exists ($_->{res});
+}
+
+
+
+### вывод HTML!
+
+foreach my $dist ('a', 'b'){
+
+open OUT, "> data_out/res$mmb_id$dist.htm" or
+  die "can't open file for html output";
+
+my $dist_r = ($dist eq 'a')? 'А':'Б';
+
+print OUT qq*
+<html><head>
+$MMB::HTML::styles
+<title>Результаты $mmb_name, дистанция $dist_r</title>
+</head>
+<body>
+<p><table border=0 cellspacing=1 cellpadding=5>
+<tr><th colspan=10><font size="+2">Результаты $mmb_name, дистанция $dist_r</font></th>
+<th colspan=2>$MMB::HTML::counter
+</th>
+</tr>
+<tr>
+<td colspan=12>
+<p>Чисмена - Ямуга, 16-18 мая
+*;
+
+print OUT qq*
+<p>Первый этап: 10 КП, 33 км + спецэтап из 24 КП. Старт c 20:00 до 23:00 пятницы 16 мая,
+контрольное время до 9:00 воскресенья.
+
+<p>Второй этап: 7 КП, 27 км. Старт в 7:00 
+воскресенья, контрольное время -- до 22:00 воскресенья. 
+
+<p>Команды, опоздавшие к 7:00 на пром.финиш могли стартовать позже.
+При этом время старта второго этапа считается равным времени финиша
+первого этапа.
+
+<p>Штраф за невзятие КП спецэтапа -- 30 минут, остальных КП -- 2 часа
+
+<p> Карты дистанции:
+<p>
+<a href="08/p1a.png"> <img src="08/p1a.jpg"  width=160 height=114 alt="a-1 (первый этап)"></a>
+<a href="08/p2.png">  <img src="08/p2.jpg"   width=114 height=160 alt="a-2 (спецэтап)"></a>
+<a href="08/p2f.png"> <img src="08/p2f.jpg"  width=142 height=160 alt="a-2 (спецэтап с КП)"></a>
+<a href="08/p3a.png"> <img src="08/p3a.jpg"  width=111 height=160 alt="a-3 (первый этап)"></a>
+<a href="08/p4a.png"> <img src="08/p4a.jpg"  width=111 height=160 alt="a-4 (второй этап)"></a>
+<a href="08/p5a.png"> <img src="08/p5a.jpg"  width=160 height=110 alt="a-5 (второй этап)"></a>
+* if $dist eq 'a'; 
+
+print OUT qq*
+<p>Первый этап: 13 КП, 41 км + спецэтап из 24 КП. Старт c 20:00 до 23:00 пятницы 16 мая,
+контрольное время до 9:00 воскресенья.
+
+<p>Второй этап: 8 КП, 30 км. Старт в 7:00 
+воскресенья, контрольное время -- до 22:00 воскресенья. 
+
+<p>Команды, опоздавшие к 7:00 на пром.финиш могли стартовать позже.
+При этом время старта второго этапа считается равным времени финиша
+первого этапа.
+
+<p>Штраф за невзятие КП спецэтапа -- 30 минут, остальных КП -- 2 часа
+
+<p> Карты дистанции:
+<p>
+<a href="08/p1b.png"> <img src="08/p1b.jpg"  width=160 height=114 alt="b-1 (первый этап)"></a>
+<a href="08/p2.png">  <img src="08/p2.jpg"   width=114 height=160 alt="b-2 (спецэтап)"></a>
+<a href="08/p2f.png"> <img src="08/p2f.jpg"  width=142 height=160 alt="b-2 (спецэтап с КП)"></a>
+<a href="08/p3b.png"> <img src="08/p3b.jpg"  width=111 height=160 alt="b-3 (первый этап)"></a>
+<a href="08/p4b.png"> <img src="08/p4b.jpg"  width=111 height=160 alt="b-4 (второй этап)"></a>
+<a href="08/p5b.png"> <img src="08/p5b.jpg"  width=160 height=110 alt="b-5 (второй этап)"></a>
+* if $dist eq 'b'; 
+
+
+print OUT qq*
+<div align=right>
+<a href="res$mmb_id.yaml.gz">[YAML]</a>
+<a href="res$mmb_id.csv.gz">[CSV]</a>
+</div>
+</td>
+</tr>
+<tr>
+<th rowspan=2>N</th>
+<th rowspan=2>Команда</th>
+<th colspan=4>первый этап</th>
+<th colspan=4>второй этап</th>
+<th colspan=2>итог</th>
+</tr>
+<tr>
+<th>старт - см.карт - финиш</th>
+<th>невз.КП</th>
+<th>рез.</th>
+<th>место</th>
+
+<th>старт - финиш</th>
+<th>невз.КП</th>
+<th>рез.</th>
+<th>место</th>
+
+<th>рез.</th>
+<th>место</th>
+</tr>
+*;
+
+foreach (sort {$a->{srt} <=> $b->{srt}} @data) {
+  next if !exists $_->{people};
+  next if $_->{dist} ne $dist;
+
+  # определим все поля, которые нам нужны для вывода
+  foreach my $f (split ' ', 't_st t_sm t_pf t_st2 t_fin  kp_spec kp_1e kp_2e'){
+    $_->{$f} = '' unless exists $_->{$f};
+  }
+
+  print OUT "<tr>", MMB::HTML::people($_);
+  print OUT "<td align=center>$_->{t_st} - $_->{t_sm} - $_->{t_pf}</td>\n";
+  print OUT "<td align=center>спецэтап: $_->{kp_spec}<br>дистанция: $_->{kp_1e}</td>\n";
+  print OUT MMB::HTML::res_place1($_->{res_1e}, $_->{place_1e});
+  print OUT "<td align=center>$_->{t_st2} - $_->{t_fin}</td>";
+  print OUT "<td align=center>$_->{kp_2e}</td>\n";
+  print OUT MMB::HTML::res_place1($_->{res_2e}, $_->{place_2e});
+  print OUT MMB::HTML::res_place($_->{res}, $_->{place});
+  print OUT "</tr>\n";
+}
+print OUT qq*
+
+<tr><th colspan=15>
+<p>Подготовка дистанции: А.Тонис, А.Чупикин, В.Львов, В.Завьялов, В.Макаренков,
+Е.Алексанова и А., А.Савватеев, Д.Ильинский.<br> 
+Проведение марш-броска: А.Тонис, А.Чупикин, А.Панкратов, В.Львов, Е.Артамонова,
+О.Урюпина, А.Баштанов, И.Кирышева, С.Колбин, Е.Алексанова и А., В.Завьялов.</p>
+</th></tr></table>
+</body>
+</html>
+*;
+close OUT;
+
+open OUT, "> data_out/ludi$mmb_id$dist.txt" or
+  die "can't open file for txt output";
+
+foreach ( @data ) {
+  next if !exists $_->{people};
+  next if $_->{dist} ne $dist;
+
+  my $nu=$#{$_->{people}};
+
+  foreach my $u (@{$_->{people}}){
+
+    printf OUT "%-40s\tN%d%s", $u, $_->{N}, ($_->{dist} eq 'a')?'А':'Б';
+    printf OUT " \"%s\"", $_->{name} if exists $_->{name};
+    printf OUT " (%d чел.)\t", $#{$_->{people}}+1;
+
+    if (exists $_->{place}) {
+      print OUT "$_->{res} ($_->{place} место)";}
+    elsif (exists $_->{res}) {
+      print OUT "$_->{res} (вне зачета)";}
+    else {print OUT "сход с дистанции";}
+    print OUT "\n";
+  }
+}
+
+}

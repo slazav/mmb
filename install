@@ -1,0 +1,18 @@
+#!/bin/sh -eu
+
+dir="/home/sla/CH/mmb"
+#dir="./OUT"
+
+echo "Installing html data to www dir:"
+
+for i in\
+  polozh/*.htm\
+  results/*/data_out/*.htm \
+  results/*/data_out/*.yaml.gz \
+  results/*/data_out/*.csv.gz \
+  rating/*.htm\
+;
+do
+  [ "$i" -ot "$dir/${i##*/}" ] ||
+    ( echo " * ${i##*/}"; cp -f -- "$i" "$dir" )
+done
