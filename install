@@ -6,7 +6,7 @@ dir="/home/sla/CH/mmb"
 echo "Installing html data to www dir:"
 
 for i in\
-  polozh/*.htm\
+  html/*\
   results/*/data_out/*.htm \
   results/*/data_out/*.yaml.gz \
   results/*/data_out/*.csv.gz \
