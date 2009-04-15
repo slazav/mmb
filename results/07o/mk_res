@@ -13,7 +13,7 @@ res::read_tbl("data_in/e_sm2.dat", \@data, 3);
 res::read_tbl("data_in/e_f.dat",   \@data, 3);
 my @cdata;
 reg::data_read("data_in/reg.dat", \@cdata);
-reg::modif_names(\@cdata);
+MMB::Names::modif_names(\@cdata);
 
 my %comm;
 open C, "data_in/e_comm.dat" or die "can't open e_comm";

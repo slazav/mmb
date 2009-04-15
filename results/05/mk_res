@@ -11,7 +11,7 @@ res::read_tbl("data_in/e1.dat", \@d, 3);
 res::read_tbl("data_in/e2.dat", \@d, 3);
 my @ddd;
 reg::data_read("data_in/reg.dat", \@ddd);
-reg::modif_names(\@ddd);
+MMB::Names::modif_names(\@ddd);
 
 # Подсчет результатов
 for (my $n=0; $n<=$#ddd; $n++){

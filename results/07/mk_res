@@ -13,7 +13,7 @@ res::read_tbl("data_in/ef2.dat", \@data, 5);
 my @cdata;
 reg::data_read("data_in/mmb07_a.dat", \@cdata);
 reg::data_read("data_in/mmb07_b.dat", \@cdata);
-reg::modif_names(\@cdata);
+MMB::Names::modif_names(\@cdata);
 
 my @ddd;
 

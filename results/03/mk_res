@@ -10,7 +10,7 @@ res::read_tbl("data_in/r1.dat", \@data, 4);
 res::read_tbl("data_in/r2.dat", \@data, 3);
 my @cdata;
 reg::data_read("data_in/reg.dat", \@cdata);
-reg::modif_names(\@cdata);
+MMB::Names::modif_names(\@cdata);
 
 my @ddd;
 
