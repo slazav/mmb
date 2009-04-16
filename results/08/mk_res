@@ -1,7 +1,6 @@
 #!/usr/bin/perl -w -I../perl
 
 use strict;
-use res_new;
 use reg;
 use MMB::CPList;
 use MMB::IO;
