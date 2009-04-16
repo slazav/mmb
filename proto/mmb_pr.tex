@@ -1,0 +1,28 @@
+\documentclass[10pt]{article}
+\usepackage[koi8-ru]{inputenc}
+\usepackage[russian]{babel}
+\textheight=26.3cm \textwidth=17cm
+\oddsidemargin=-.6cm
+\evensidemargin=-.6cm
+\topmargin=-1.5cm
+\tolerance=600
+\pagestyle{empty}
+
+\def\tline{&&&&&\\\hline}
+\def\tfive{\tline\tline\tline\tline\tline}
+\def\tten{\tfive\tfive\hline}
+\begin{document}
+
+\renewcommand{\arraystretch}{1.17}
+\begin{tabular}{|l|l|l|l|l|l|}
+\hline
+\hbox to 1cm {\bf время \hfil} &
+\hbox to 0.7cm {\bf N \hfil} &
+\hbox to 3.5cm {\bf название \hfil} &
+\hbox to 1.1cm {\bf кол-во \hss} &
+\hbox to 3cm {\bf невз.КП \hfil} &
+\hbox to 4.6cm {\bf комментарии\hfil} \\
+\hline\hline
+\tten\tten\tten\tten\tten
+\end{tabular}
+\end{document}
