@@ -559,7 +559,7 @@ sub html_red1_form{
   return qq*
   <p><form name="red" method="post" action="$script">
   <input name="type" type="hidden" value="red1">
-  Номер:  <input name="n" type="text" maxlength="3" size="3" value="$n">
+  Номер:  <input name="n" type="text" maxlength="4" size="4" value="$n">
   Пароль: <input name="pass" type="text" maxlength="8" size="8" value="$pass">
   <input type="submit" value=">>">
   </form>*;
@@ -571,7 +571,7 @@ sub html_pass_form{
   return qq* 
   <p><form name="pass" method="post" action="$script">
   <input name="type" type="hidden" value="pass">
-  Номер команды:  <input name="n" type="text" maxlength="3" size="3" value="$n">
+  Номер команды:  <input name="n" type="text" maxlength="4" size="4" value="$n">
   Адрес: <input name="mail" type="text" maxlength="80" size="21" value="$mail">
   <input type="submit" value=">>">
   </form>*;
