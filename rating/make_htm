@@ -1,8 +1,9 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl -w -I../results/perl
 
 use strict;
 use locale;
 use POSIX qw(locale_h);
+use MMB::Names;
 
 setlocale(LC_COLLATE, "ru_RU.KOI8-R");
 setlocale(LC_CTYPE, "ru_RU.KOI8-R");
@@ -44,37 +45,35 @@ foreach my $mmb (@mmb){
   foreach (<IN>){
 
     my ($l, $r1, $r2) = split /\t/;
-    $l =~ s/Наташа/Наталья/;
-    $l =~ s/Гриша/Григорий/;
-    $l =~ s/Катерина/Екатерина/;
-    $l =~ s/Аня/Анна/;
-
-    $l =~ s/Саморукова/Рукавицына/;
     $l =~ s/\s+$//;
 
+    my $key=MMB::Names::name2key($l);
 
-    if ($l =~ s/,\s*(\d+)$//){ 
-      if (exists($data{$l}->{y}) && ($data{$l}->{y}!=$1)){
-        warn "Тезки? $l, $1 и $l, $data{$l}->{y}?\n";
-        $l = "$l, $1";
+    if ($key =~ s/,\s*(\d+)$//){ 
+      if (exists($data{$key}->{y}) && ($data{$key}->{y}!=$1)){
+        warn "Тезки? $key, $1 и $key, $data{$key}->{y}?\n";
+        $key = "$key, $1";
+        $data{$key}->{y} = $1;
       } else {
-        $data{$l}->{y} = $1;
+        $data{$key}->{y} = $1;
       }
     }
+    $l =~ s/,\s*(\d+)$//;
 
-    warn "$l на mmb$mmb встречается дважды\n" if exists($data{$l}->{$mmb});
+    warn "$key на mmb$mmb встречается дважды\n" if exists($data{$key}->{$mmb});
 
     $r1 =~ s/^N(\d+)/<a href=\"res$mmb.htm\#$1\">$1<\/a> /;
     my $bgcolor="\#C0C0C0";
 
 
-    $data{$l}->{r} = 0.0 unless exists($data{$l}->{r});
+    $data{$key}->{r} = 0.0 unless exists($data{$key}->{r});
     if ($r2=~/(\d+):(\d\d)\s+\([\d\-]+\s+место\)$/){ 
-      $data{$l}->{r} += $best{$mmb}/(1.0*($1*60+$2));
-#      print STDERR "$1:$2 $data{$l}->{r}\n";
+      $data{$key}->{r} += $best{$mmb}/(1.0*($1*60+$2));
+#      print STDERR "$1:$2 $data{$key}->{r}\n";
       $bgcolor="\#A0A0A0";
     }
-    $data{$l}->{$mmb1} = "<td align=center bgcolor=\"$bgcolor\">$r1<br><b>$r2</b></td>\n";
+    $data{$key}->{"name"}=$l;
+    $data{$key}->{$mmb1} = "<td align=center bgcolor=\"$bgcolor\">$r1<br><b>$r2</b></td>\n";
   }
 }
 
@@ -127,7 +126,7 @@ href="ludi.htm">Смотрите также полный алфавитный список
   foreach my $u (sort {$data{$b}->{r} <=> $data{$a}->{r}} keys %data){
     $n++;
     last if $data{$u}->{r} ==0;
-    print OUT "<tr><th>$n</th><td bgcolor=\"\#C0C0C0\">$u";
+    print OUT "<tr><th>$n</th><td bgcolor=\"\#C0C0C0\">$data{$u}->{name}";
     print OUT ", $data{$u}->{y}" if defined($data{$u}->{y});
     print OUT "</td>\n";
     foreach my $mmb1 (@mmb1){
@@ -162,7 +161,7 @@ href="ludi.htm">Смотрите также полный алфавитный список
 
   foreach my $u (sort keys %data){
     $n++;
-    print OUT "<tr><th>$n</th><td bgcolor=\"\#C0C0C0\">$u";
+    print OUT "<tr><th>$n</th><td bgcolor=\"\#C0C0C0\">$data{$u}->{name}";
     print OUT ", $data{$u}->{y}" if defined($data{$u}->{y});
     print OUT "</td>\n";
     foreach my $mmb1 (@mmb1){
