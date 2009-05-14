@@ -1,0 +1,57 @@
+#!/usr/bin/perl -w
+use strict;
+use reg;
+use MMB::Names;
+use MMB::IO;
+
+my $file="mmb_reg.dat";
+
+my @data;
+MMB::IO::read_yaml('../data/mmb09.yaml', \@data, 'name', 'people', 'gps', 'dist');
+MMB::Names::modif_names(\@data);
+
+### выводим в TEX
+
+print qq* 
+\\documentclass[10pt]{article}
+\\usepackage[koi8-ru]{inputenc}
+\\usepackage[russian]{babel}
+\\usepackage{longtable}
+\\textheight=26cm \\textwidth=17cm
+\\oddsidemargin=-.6cm
+\\evensidemargin=-.6cm
+\\topmargin=-1.5cm
+\\tolerance=600
+\\pagestyle{empty}
+
+\\begin{document}
+*;
+
+foreach (0,1){
+  my ($nc, $nu, $ng) = reg::count_dist(\@data, $_);
+
+  print "{\\sffamily\\large Дистанция ", $_?'Б':'А', "}\n\n";
+  print qq*
+  \\renewcommand{\\arraystretch}{1.5}
+  \\begin{longtable}{|p{180pt}|p{279pt}|}
+  \\hline
+  *;
+
+  for (my $n=0; $n<= $#data; $n++){
+    next if (!defined($data[$n]) ||
+            ($data[$n]->{dist}!=$_));
+
+    print reg::tex_cell(\@data, $n), "&\\\\\\hline\n";
+  }
+  print qq*
+  \\end{longtable}
+
+  {\\sffamily\\large Итого: $nc команд, $nu человек, 
+  $ng команд пользуются gps.}
+  *;
+  print "\\newpage\n" if !$_;
+}
+
+print qq*
+\\end{document}
+*;

@@ -1,0 +1,67 @@
+#!/usr/bin/perl -w
+use strict;
+use reg;
+use MMB::Names;
+use locale;
+use POSIX qw(locale_h);
+
+setlocale(LC_COLLATE, "ru_RU.KOI8-R");
+setlocale(LC_CTYPE, "ru_RU.KOI8-R");
+
+my $file="mmb_reg.dat";
+
+
+my @data;
+reg::data_read("$file", \@data); # массив данных обо всех командах
+MMB::Names::modif_names(\@data);
+
+### выводим в TEX
+
+print qq* 
+\\documentclass[10pt]{article}
+\\usepackage[koi8-ru]{inputenc}
+\\usepackage[russian]{babel}
+\\usepackage{longtable}
+\\textheight=26cm \\textwidth=17cm
+\\oddsidemargin=-.6cm
+\\evensidemargin=-.6cm
+\\topmargin=-1.5cm
+\\tolerance=600
+\\pagestyle{empty}
+
+\\begin{document}
+*;
+
+my ($nc, $nu, $ng) = reg::count_dist(\@data, '');
+
+my @d1;
+
+for (my $n=0; $n<=$#data; $n++){
+  next if !defined($data[$n]);
+  $data[$n]->{name}=~s/\"([^\"]*)\"/<<$1>>/g;
+  $data[$n]->{name}=~s/_/\\_/g;
+
+  foreach (1..9){
+    next if $data[$n]->{"u$_"} eq '';
+    push @d1, {   u=>$data[$n]->{"u$_"}, 
+               name=>$data[$n]->{"name"}, 
+#               dist=>$data[$n]->{"dist"}?'Б':'А',
+                  n=>$n}
+  }
+}
+print qq*
+{\\sffamily\\large $nc команд, $nu человек, 
+$ng команд пользуются gps.}
+\\renewcommand{\\arraystretch}{1}
+\\begin{longtable}{|lrl|}
+\\hline
+*;
+
+
+foreach (sort{$a->{u} cmp $b->{u}} @d1) {
+  print "$_->{u} & $_->{n} & $_->{name} \\\\\n";
+}
+print qq*
+\\hline\\end{longtable}
+\\end{document}
+*;
