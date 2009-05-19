@@ -135,7 +135,7 @@ YAML::Tiny::DumpFile("data_out/res$mmb_id.yaml", @data);
 # кидаем данные в csv!
 open OUT, "> data_out/res$mmb_id.csv" or die "can't write to res$mmb_id.csv";
 my @fields = ('t_st', 't_14', 't_pf', 't_st2', 't_f', 
-    'kp_14', 'kp_1e', 'kp_2e', 'res_14', 'place_14', 
+    'kp_14', 'kp_pf', 'kp_f', 'res_14', 'place_14', 
     'res_1e', 'place_1e', 'res_2e', 'place_2e', 'res', 'place');
 print OUT MMB::CSV::DumpH(@fields), "\n";
 foreach (@data) {
@@ -273,16 +273,16 @@ foreach (sort {$a->{srt} <=> $b->{srt}} @data) {
   next if $_->{dist} ne $dist;
 
   # определим все поля, которые нам нужны для вывода
-  foreach my $f (split ' ', 't_st t_sm t_pf t_st2 t_fin  kp_spec kp_1e kp_2e'){
+  foreach my $f (split ' ', 't_st t_sm t_pf t_st2 t_fin  kp_spec kp_pf kp_f'){
     $_->{$f} = '' unless exists $_->{$f};
   }
 
   print OUT "<tr>", MMB::HTML::people($_);
   print OUT "<td align=center>$_->{t_st} - $_->{t_sm} - $_->{t_pf}</td>\n";
-  print OUT "<td align=center>$_->{kp_1e}</td>\n";
+  print OUT "<td align=center>$_->{kp_pf}</td>\n";
   print OUT MMB::HTML::res_place1($_->{res_1e}, $_->{place_1e});
   print OUT "<td align=center>$_->{t_st2} - $_->{t_f}</td>";
-  print OUT "<td align=center>$_->{kp_2e}</td>\n";
+  print OUT "<td align=center>$_->{kp_f}</td>\n";
   print OUT MMB::HTML::res_place1($_->{res_2e}, $_->{place_2e});
   print OUT MMB::HTML::res_place($_->{res}, $_->{place});
   print OUT "</tr>\n";
