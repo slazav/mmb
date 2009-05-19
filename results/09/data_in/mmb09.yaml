@@ -3014,7 +3014,7 @@ people:
 ---
 N: 432
 dist: 0
-gps: off
+gps: on
 name: 'СэМ'
 people:
   - 'Самборский Сергей, 1965'
