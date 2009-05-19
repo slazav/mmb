@@ -63,7 +63,7 @@ foreach(@data){
   # пересобираем списки невзятых КП
   $_->{kp_sm}   = MMB::CPList::repack_list($_->{kp_sm})   if exists($_->{kp_sm});
   $_->{kp_1e}   = MMB::CPList::repack_list($_->{kp_1e})   if exists($_->{kp_1e});
-  $_->{kp_2e}   = MMB::CPList::repack_list($_->{kp_2e})   if exists($_->{kp_1e});
+  $_->{kp_2e}   = MMB::CPList::repack_list($_->{kp_2e})   if exists($_->{kp_2e});
 
   # k_sm = k_1e урезанному до 1-40
   warn "\nЧто-то не так с числом КП на п/ф и на с/к для команды:\n",
