@@ -273,12 +273,12 @@ foreach (sort {$a->{srt} <=> $b->{srt}} @data) {
   next if $_->{dist} ne $dist;
 
   # определим все поля, которые нам нужны для вывода
-  foreach my $f (split ' ', 't_st t_sm t_pf t_st2 t_fin  kp_spec kp_pf kp_f'){
+  foreach my $f (split ' ', 't_st t_pf t_st2 t_f kp_pf kp_f'){
     $_->{$f} = '' unless exists $_->{$f};
   }
 
   print OUT "<tr>", MMB::HTML::people($_);
-  print OUT "<td align=center>$_->{t_st} - $_->{t_sm} - $_->{t_pf}</td>\n";
+  print OUT "<td align=center>$_->{t_st} - $_->{t_pf}</td>\n";
   print OUT "<td align=center>$_->{kp_pf}</td>\n";
   print OUT MMB::HTML::res_place1($_->{res_1e}, $_->{place_1e});
   print OUT "<td align=center>$_->{t_st2} - $_->{t_f}</td>";
